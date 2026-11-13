@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="和知竹老师一起，完成《杨氏之子》三轮互动问答。">
+  <title>杨氏之子 · 三问古文小课堂</title>
+  <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+  <main class="scene">
+    <img class="backdrop" src="assets/teacher.png" alt="知竹老师坐在古风书房中">
+    <header class="toolbar">
+      <h1>杨氏之子</h1>
+      <nav aria-label="课堂控制">
+        <button id="sound" aria-pressed="true">声音开</button>
+        <button id="fullscreen">全屏</button>
+        <button id="help">说明</button>
+      </nav>
+    </header>
+    <div class="interaction">
+      <section class="speech" aria-label="老师的话">
+        <div class="speaker"><span>知竹老师</span><span id="round">三轮问答</span></div>
+        <p id="teacher" aria-live="polite">同学你好，我们一起来读懂杨氏之子的机智。</p>
+        <div class="speechControls"><span id="avatarStatus">准备开始</span><button id="replay">重听</button></div>
+      </section>
+      <section class="response" aria-label="你的回答">
+        <button id="start" class="primary">开始问答 →</button>
+        <form id="answerForm" hidden>
+          <label class="srOnly" for="answer">你的回答</label>
+          <textarea id="answer" rows="2" maxlength="500" placeholder="说出你的想法，或打字回答…"></textarea>
+          <div class="answerActions"><button type="button" id="mic">语音回答</button><button type="submit" class="primary" id="submit">提交 →</button></div>
+          <p id="status" role="status"></p>
+          <button type="button" id="skip" class="textButton">请老师讲一讲</button>
+        </form>
+        <div id="ending" hidden><p>三轮问答完成</p><button class="primary" id="again">再学一次</button><button id="download" class="textButton">保存问答</button></div>
+      </section>
+    </div>
+    <footer><span>AI 生成形象与语音</span><button id="reset" class="textButton" hidden>重新开始</button></footer>
+  </main>
+  <dialog id="helpDialog">
+    <button id="closeHelp" class="close" aria-label="关闭说明">×</button>
+    <h2>课堂说明</h2>
+    <p>听老师提问后，点击语音回答或输入文字。检查回答后提交，老师点评并自动进入下一轮。</p>
+    <p>已固定使用晓晓女声音频。老师的话可点“重听”。语音识别依赖浏览器、网络和麦克风授权，失败时可打字继续。</p>
+    <p>点评按关键词规则判断，请教师结合学生实际表达引导。问答仅保留在本次页面中，本站不保存录音。浏览器语音服务可能处理音频。</p>
+    <details><summary>本次问答记录</summary><div id="history">暂无记录</div></details>
+    <a href="制作说明与视频提示词.md" download>下载制作说明与视频提示词</a>
+  </dialog>
+  <audio id="narration" preload="auto" src="assets/audio/welcome.mp3"></audio>
+  <script src="lesson.js"></script>
+  <script src="classroom-config.js"></script>
+  <script src="classroom-content.js"></script>
+  <script src="app.js?v=pages-1"></script>
+</body>
+</html>

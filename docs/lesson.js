@@ -1,0 +1,15 @@
+const lesson = [
+ {title:'杨氏之子，是谁呢？',question:'同学们，我们今天学习《杨氏之子》，先考考你，你知道杨氏之子是谁吗？',good:'说得不错！杨氏之子，就是姓杨人家的儿子，年仅九岁，十分聪慧。我们进入下一题。',help:'没关系，我们一起来记一下，杨氏之子指杨氏家的儿子。我们继续第二轮。'},
+ {title:'一句“君家果”，藏着什么？',question:'那再想一想，孔君平为什么要说“此是君家果”呢？',good:'理解到位！杨梅的“杨”和杨氏的“杨”是同一个字，孔君平是拿这个和孩子开玩笑。我们来看最后一题。',help:'这里是孔君平在打趣，杨梅带“杨”，和杨氏的姓氏一样，是逗孩子的话。我们来第三轮。'},
+ {title:'他的回答，妙在哪里？',question:'杨氏之子回答“未闻孔雀是夫子家禽”，这句话妙在哪里？说说你的理解。',good:'太厉害了！他顺着孔君平的思路，用孔雀巧妙回击，有礼又机智，一点不生硬。',help:'这句话妙在借力反击，孔君平拿姓氏开玩笑，孩子也用同样的方式回应，委婉又聪明。'}
+];
+const closing='三轮问答完成，你感受到杨氏之子思维敏捷、应答巧妙了吗？';
+function assess(round,text){
+ const s=text.replace(/[\s，。！？、：“”‘’]/g,'');
+ if(/不知道|不清楚|不会|没想好|想不出|不懂/.test(s))return 'help';
+ if(round===0){if(/杨/.test(s)&&/儿子|孩子|小孩|男孩|小朋友/.test(s)&&! /不是|不姓|没有/.test(s))return 'good';if(/杨|儿子|九岁|9岁|聪明|聪慧|孔君平/.test(s))return 'help';}
+ if(round===1){if(/杨梅/.test(s)&&/姓|同.*字|相同|一样|都有杨|都带杨/.test(s)&&! /不一样|不相同|不是/.test(s))return 'good';if(/杨|果|姓|孔|玩笑|打趣|逗/.test(s))return 'help';}
+ if(round===2){if(/孔雀/.test(s)&&/姓|孔君平|同样|相同|一样|顺着|回敬|回击/.test(s)&&/礼|委婉|未闻|婉转|客气/.test(s)&&! /不礼貌|没有礼貌/.test(s))return 'good';if(/孔|杨|姓|机智|聪明|礼貌|委婉|反击|回击|未闻|家禽|同样|礼/.test(s))return 'help';}
+ return 'unrelated';
+}
+if(typeof module!=='undefined')module.exports={lesson,assess,closing};
