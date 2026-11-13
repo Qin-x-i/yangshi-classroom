@@ -1,6 +1,5 @@
-// Only the project URL and the browser-safe publishable key belong here.
 const classroomConfig = Object.freeze({
-  url: '',
-  publishableKey: '',
-  revision: '2',
+  "revision": "2",
+  "publishableKey": "sb_publishable_8TvFpoawVE-_76sapN_DZg_b890oSkE",
+  "url": "https://niuldftwbhbwraemiczv.supabase.co"
 });
