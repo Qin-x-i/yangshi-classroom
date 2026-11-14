@@ -56,7 +56,7 @@ function stopVideo(keepPicture = false) {
 }
 
 function clipUrl(number) {
-  return `assets/video/${number}.mp4`;
+  return `assets/video/${number}.mp4?v=faststart`;
 }
 
 function prepareNextClip(number) {
