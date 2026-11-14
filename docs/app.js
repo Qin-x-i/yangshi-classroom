@@ -3,12 +3,15 @@ const videos = [$('teacherVideo'), $('nextTeacherVideo')];
 let activeVideo = videos[0];
 let visibleVideo = null;
 const poster = $('teacherPoster');
+const openingStill = poster.src;
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const opening = '同学们好，我是知竹老师，今天我们来学习《杨氏之子》。我们一共有三轮问答，我先提问，你来作答，准备好了吗？';
 const questionClips = ['01', '04', '08'];
 const goodClips = ['02', '06', '11'];
 const helpClips = ['03', '07', '12'];
 const praises = ['很好！', '非常好！', '太厉害了！'];
+// One silent frame is skipped only when the second answer is correct.
+const matchedThirdQuestionStart = 1 / 30;
 
 let round = -1;
 let records = [];
@@ -34,6 +37,7 @@ function endStill(clip) {
 
 function clearVideoHandlers(video) {
   video.onended = video.onerror = video.onplaying = video.onloadedmetadata = video.onseeked = null;
+  video.onloadeddata = null;
 }
 
 function stopVideo(keepPicture = false) {
@@ -42,6 +46,7 @@ function stopVideo(keepPicture = false) {
   for (const video of videos) {
     clearVideoHandlers(video);
     video.pause();
+    for (const animation of video.getAnimations()) animation.cancel();
     if (!keepPicture) video.hidden = true;
   }
   if (!keepPicture) {
@@ -66,17 +71,21 @@ function prepareNextClip(number) {
 
 function playClip(clip, onComplete = null, nextNumber = null) {
   stopVideo(true);
-  currentClip = clip;
   afterPlayback = onComplete;
   const id = playbackId;
   const source = clipUrl(clip.number);
+  const startTime = clip.startTime ?? 0;
   const candidates = videos.filter(video => video !== visibleVideo);
-  const video = candidates.find(video => video.getAttribute('src') === source && !video.error)
+  // On the first click, continue from the frame already displayed by the opening video.
+  const preview = !currentClip && visibleVideo?.getAttribute('src') === source ? visibleVideo : null;
+  const video = preview ?? candidates.find(video => video.getAttribute('src') === source && !video.error)
     ?? candidates.find(video => video === activeVideo)
     ?? candidates[0];
+  currentClip = clip;
   activeVideo = video;
   const still = nextNumber ? null : endStill(clip.number);
   let finishing = false;
+  let shown = false;
 
   const finish = async () => {
     if (id !== playbackId || finishing) return;
@@ -115,6 +124,10 @@ function playClip(clip, onComplete = null, nextNumber = null) {
   video.muted = muted;
   video.onplaying = () => {
     if (id !== playbackId) return;
+    if (!shown && clip.startTime && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      video.animate([{ filter: 'brightness(0.992)' }, { filter: 'brightness(1)' }], 180);
+    }
+    shown = true;
     video.hidden = false;
     if (visibleVideo && visibleVideo !== video) visibleVideo.hidden = true;
     visibleVideo = video;
@@ -129,7 +142,7 @@ function playClip(clip, onComplete = null, nextNumber = null) {
   };
   const seekAndPlay = () => {
     if (id !== playbackId) return;
-    if (video.currentTime === 0 && !video.ended) {
+    if (Math.abs(video.currentTime - startTime) < 0.001 && !video.ended) {
       start();
       return;
     }
@@ -137,7 +150,7 @@ function playClip(clip, onComplete = null, nextNumber = null) {
       video.onseeked = null;
       start();
     };
-    video.currentTime = 0;
+    video.currentTime = startTime;
   };
   if (video.getAttribute('src') !== source || video.error) {
     video.preload = 'auto';
@@ -145,6 +158,12 @@ function playClip(clip, onComplete = null, nextNumber = null) {
   }
   if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
     seekAndPlay();
+  } else if (startTime) {
+    video.onloadedmetadata = () => {
+      video.onloadedmetadata = null;
+      seekAndPlay();
+    };
+    video.load();
   } else {
     start();
   }
@@ -166,7 +185,7 @@ function render() {
   });
 }
 
-function showQuestion() {
+function showQuestion(previousNumber = null) {
   reviewing = false;
   $('status').textContent = '';
   $('answer').value = '';
@@ -178,7 +197,9 @@ function showQuestion() {
   const question = classroom.lesson[round].question;
   const first = round === 0;
   $('teacher').textContent = first ? `${opening} ${question}` : question;
-  playClip({ number: questionClips[round] }, () => {
+  const number = questionClips[round];
+  const startTime = previousNumber === '06' && number === '08' ? matchedThirdQuestionStart : 0;
+  playClip({ number, startTime }, () => {
     $('teacher').textContent = question;
   });
 }
@@ -186,7 +207,10 @@ function showQuestion() {
 function begin() {
   session++;
   recognition?.abort();
-  stopVideo();
+  if (currentClip) {
+    poster.src = openingStill;
+    stopVideo();
+  }
   records = [];
   classroom = classroomContent.current();
   round = 0;
@@ -211,11 +235,10 @@ function submit(answer) {
   reviewing = true;
   $('teacher').textContent = feedback;
   $('status').textContent = '听听老师的点评';
-  playClip({
-    number: correct ? goodClips[round] : helpClips[round],
-  }, () => {
+  const number = correct ? goodClips[round] : helpClips[round];
+  playClip({ number }, () => {
     round++;
-    showQuestion();
+    showQuestion(number);
   }, questionClips[round + 1] ?? '13');
 }
 
@@ -303,3 +326,13 @@ window.addEventListener('pagehide', () => {
   stopVideo();
   recognition?.abort();
 });
+
+// Keep the PNG behind the opening video while the browser prepares its first frame.
+const openingVideo = videos[0];
+openingVideo.onloadeddata = () => {
+  openingVideo.onloadeddata = null;
+  openingVideo.hidden = false;
+  visibleVideo = openingVideo;
+};
+openingVideo.preload = 'auto';
+openingVideo.src = clipUrl(questionClips[0]);

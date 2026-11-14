@@ -9,7 +9,18 @@ function assess(round,text){
  if(/不知道|不清楚|不会|没想好|想不出|不懂/.test(s))return 'help';
  if(round===0){if(/杨/.test(s)&&/儿子|孩子|小孩|男孩|小朋友/.test(s)&&! /不是|不姓|没有/.test(s))return 'good';if(/杨|儿子|九岁|9岁|聪明|聪慧|孔君平/.test(s))return 'help';}
  if(round===1){if(/杨梅/.test(s)&&/姓|同.*字|相同|一样|都有杨|都带杨/.test(s)&&! /不一样|不相同|不是/.test(s))return 'good';if(/杨|果|姓|孔|玩笑|打趣|逗/.test(s))return 'help';}
- if(round===2){if(/孔雀/.test(s)&&/姓|孔君平|同样|相同|一样|顺着|回敬|回击/.test(s)&&/礼|委婉|未闻|婉转|客气/.test(s)&&! /不礼貌|没有礼貌/.test(s))return 'good';if(/孔|杨|姓|机智|聪明|礼貌|委婉|反击|回击|未闻|家禽|同样|礼/.test(s))return 'help';}
+ if (round === 2) {
+   const usesPeacock = /孔雀/.test(s);
+   const explainsConnection = /姓|孔君平|同样|相同|一样|顺着|回敬|回击/.test(s);
+   const explainsPoliteness = /礼|委婉|未闻|婉转|客气/.test(s);
+   const mirrorsSurnameJoke = /姓氏|姓/.test(s) && (
+     /(?:也|同样|相同|一样|顺着|照着).*(?:回应|回答|回敬|回击|反击|开玩笑|打趣)/.test(s) ||
+     /借力(?:反击|回击)|以其人之道/.test(s)
+   );
+   const contradictsAnswer = /不礼貌|没有礼貌|不委婉|没有用同样|没用同样|不是用同样|没有回应|没有反击|没有回击|不是借力反击|跟姓氏无关|与姓氏无关/.test(s);
+   if (!contradictsAnswer && (mirrorsSurnameJoke || (usesPeacock && explainsConnection && explainsPoliteness))) return 'good';
+   if (/孔|杨|姓|机智|聪明|礼貌|委婉|反击|回击|未闻|家禽|同样|礼/.test(s)) return 'help';
+ }
  return 'unrelated';
 }
 if(typeof module!=='undefined')module.exports={lesson,assess,closing};
