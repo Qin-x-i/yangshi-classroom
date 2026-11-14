@@ -1,62 +1,162 @@
 const $ = id => document.getElementById(id);
-const player = $('narration');
+const videos = [$('teacherVideo'), $('nextTeacherVideo')];
+let activeVideo = videos[0];
+let visibleVideo = null;
+const poster = $('teacherPoster');
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const opening = '同学们好，我是知竹老师，今天我们来学习《杨氏之子》。我们一共有三轮问答，我先提问，你来作答，准备好了吗？';
+const questionClips = ['01', '04', '08'];
+const goodClips = ['02', '06', '11'];
+const helpClips = ['03', '07', '12'];
+const praises = ['很好！', '非常好！', '太厉害了！'];
+
 let round = -1;
 let records = [];
 let classroom = classroomContent.current();
 let muted = false;
 let recognition = null;
 let session = 0;
-let audioToken = 0;
-let transitionTimer = null;
+let playbackId = 0;
+let playing = false;
 let reviewing = false;
-let currentClip = 'welcome';
+let currentClip = null;
 let afterPlayback = null;
+const stills = new Map();
 
-function stopAudio() {
-  audioToken++;
-  player.pause();
-  player.onended = null;
-  player.onerror = null;
-  afterPlayback = null;
+function endStill(clip) {
+  if (!stills.has(clip)) {
+    const image = new Image();
+    image.src = `assets/video/${clip}-end.png`;
+    stills.set(clip, image);
+  }
+  return stills.get(clip);
 }
 
-function playClip(clip, onComplete = null) {
-  stopAudio();
+function clearVideoHandlers(video) {
+  video.onended = video.onerror = video.onplaying = video.onloadedmetadata = video.onseeked = null;
+}
+
+function stopVideo(keepPicture = false) {
+  playbackId++;
+  playing = false;
+  for (const video of videos) {
+    clearVideoHandlers(video);
+    video.pause();
+    if (!keepPicture) video.hidden = true;
+  }
+  if (!keepPicture) {
+    visibleVideo = null;
+    poster.hidden = false;
+  }
+}
+
+function clipUrl(number) {
+  return `assets/video/${number}.mp4`;
+}
+
+function prepareNextClip(number) {
+  const next = videos.find(video => video !== activeVideo);
+  if (next === visibleVideo) return;
+  const source = clipUrl(number);
+  if (next.getAttribute('src') === source && !next.error) return;
+  next.preload = 'auto';
+  next.src = source;
+  next.load();
+}
+
+function playClip(clip, onComplete = null, nextNumber = null) {
+  stopVideo(true);
   currentClip = clip;
   afterPlayback = onComplete;
-  const token = audioToken;
-  $('avatarStatus').textContent = muted ? '声音已关闭' : '正在加载声音';
-  if (muted) return;
-  player.src = `assets/audio/${clip}.mp3`;
-  player.onended = () => {
-    if (token !== audioToken) return;
-    $('avatarStatus').textContent = round === 3 ? '课堂完成' : '等你回答';
-    const complete = afterPlayback;
-    afterPlayback = null;
-    complete?.();
-  };
-  const failed = () => {
-    if (token !== audioToken) return;
-    $('avatarStatus').textContent = '点击重听播放声音';
-    if (afterPlayback) {
-      const complete = afterPlayback;
+  const id = playbackId;
+  const source = clipUrl(clip.number);
+  const candidates = videos.filter(video => video !== visibleVideo);
+  const video = candidates.find(video => video.getAttribute('src') === source && !video.error)
+    ?? candidates.find(video => video === activeVideo)
+    ?? candidates[0];
+  activeVideo = video;
+  const still = nextNumber ? null : endStill(clip.number);
+  let finishing = false;
+
+  const finish = async () => {
+    if (id !== playbackId || finishing) return;
+    finishing = true;
+    if (nextNumber) {
       afterPlayback = null;
-      transitionTimer = setTimeout(complete, 5500);
+      onComplete();
+      return;
     }
+    try {
+      await still.decode();
+    } catch {
+      if (id !== playbackId) return;
+      failed();
+      return;
+    }
+    if (id !== playbackId) return;
+    poster.src = still.src;
+    stopVideo();
+    afterPlayback = null;
+    $('avatarStatus').textContent = round === 3 ? '课堂完成' : '等你回答';
+    onComplete?.();
+    render();
   };
-  player.onerror = failed;
-  player.play().then(() => {
-    if (token === audioToken) $('avatarStatus').textContent = '正在讲解';
-  }).catch(failed);
+
+  const failed = () => {
+    if (id !== playbackId) return;
+    stopVideo(true);
+    $('avatarStatus').textContent = '视频未播放，点「重听」重试';
+    render();
+  };
+
+  playing = true;
+  render();
+  $('avatarStatus').textContent = '正在加载视频';
+  video.muted = muted;
+  video.onplaying = () => {
+    if (id !== playbackId) return;
+    video.hidden = false;
+    if (visibleVideo && visibleVideo !== video) visibleVideo.hidden = true;
+    visibleVideo = video;
+    poster.hidden = true;
+    $('avatarStatus').textContent = '正在讲解';
+    if (nextNumber) prepareNextClip(nextNumber);
+  };
+  video.onerror = failed;
+  video.onended = finish;
+  const start = () => {
+    if (id === playbackId) video.play().catch(failed);
+  };
+  const seekAndPlay = () => {
+    if (id !== playbackId) return;
+    if (video.currentTime === 0 && !video.ended) {
+      start();
+      return;
+    }
+    video.onseeked = () => {
+      video.onseeked = null;
+      start();
+    };
+    video.currentTime = 0;
+  };
+  if (video.getAttribute('src') !== source || video.error) {
+    video.preload = 'auto';
+    video.src = source;
+  }
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+    seekAndPlay();
+  } else {
+    start();
+  }
 }
 
 function render() {
   $('start').hidden = round !== -1;
-  $('answerForm').hidden = round < 0 || round > 2;
-  $('ending').hidden = round !== 3;
+  $('answerForm').hidden = round < 0 || round > 2 || (playing && !reviewing);
+  $('ending').hidden = round !== 3 || playing || afterPlayback !== null;
   $('reset').hidden = round < 0;
-  for (const id of ['submit', 'skip', 'mic', 'answer']) $(id).disabled = reviewing;
+  $('replay').hidden = currentClip === null;
+  for (const id of ['submit', 'skip', 'mic', 'answer']) $(id).disabled = reviewing || playing;
   $('round').textContent = round === 3 ? '已完成' : `第 ${round + 1} / 3 轮`;
   $('history').replaceChildren();
   records.forEach(record => {
@@ -68,57 +168,55 @@ function render() {
 
 function showQuestion() {
   reviewing = false;
-  render();
-  $('teacher').textContent = round === 3 ? classroom.closing : classroom.lesson[round].question;
-  $('avatarStatus').textContent = round === 3 ? '课堂完成' : '等你回答';
   $('status').textContent = '';
   $('answer').value = '';
-  playClip(round === 3 ? 'closing' : `question-${round + 1}`);
+  if (round === 3) {
+    $('teacher').textContent = classroom.closing;
+    playClip({ number: '13' });
+    return;
+  }
+  const question = classroom.lesson[round].question;
+  const first = round === 0;
+  $('teacher').textContent = first ? `${opening} ${question}` : question;
+  playClip({ number: questionClips[round] }, () => {
+    $('teacher').textContent = question;
+  });
 }
 
 function begin() {
   session++;
-  clearTimeout(transitionTimer);
   recognition?.abort();
-  stopAudio();
+  stopVideo();
   records = [];
   classroom = classroomContent.current();
   round = 0;
-  reviewing = false;
-  render();
-  $('answer').value = '';
-  $('status').textContent = '';
-  $('teacher').textContent = classroom.lesson[0].question;
-  playClip('opening');
+  showQuestion();
 }
 
 function submit(answer) {
-  if (reviewing || round < 0 || round > 2) return;
+  if (reviewing || playing || round < 0 || round > 2) return;
   answer = answer.trim();
   if (!answer) { $('status').textContent = '先说一说或写下你的想法吧。'; return; }
   recognition?.abort();
   const result = assess(round, answer);
   if (result === 'unrelated') {
     $('status').textContent = '我们先完成这三轮关于《杨氏之子》的问答哦。';
-    playClip('reminder');
     return;
   }
+
   const item = classroom.lesson[round];
-  const feedback = result === 'good' ? item.good : item.help;
+  const correct = result === 'good';
+  const feedback = correct ? praises[round] + item.good : item.help;
   records.push({ round: round + 1, question: item.question, answer, feedback });
   reviewing = true;
-  render();
   $('teacher').textContent = feedback;
   $('status').textContent = '听听老师的点评';
-  const currentSession = session;
-  const advance = () => {
-    if (session !== currentSession || !reviewing) return;
-    clearTimeout(transitionTimer);
+  playClip({
+    number: correct ? goodClips[round] : helpClips[round],
+  }, () => {
     round++;
     showQuestion();
-  };
-  playClip(`${result === 'good' ? 'good' : 'help'}-${round + 1}`, advance);
-  if (muted) transitionTimer = setTimeout(advance, 5500);
+  }, questionClips[round + 1] ?? '13');
 }
 
 $('start').onclick = begin;
@@ -127,20 +225,16 @@ $('reset').onclick = begin;
 $('answerForm').onsubmit = event => { event.preventDefault(); submit($('answer').value); };
 $('skip').onclick = () => submit('我还没想好');
 $('replay').onclick = () => {
-  const continuation = afterPlayback;
-  if (continuation && !muted) clearTimeout(transitionTimer);
-  playClip(currentClip, continuation);
+  if (currentClip) {
+    const nextNumber = reviewing ? questionClips[round + 1] ?? '13' : null;
+    playClip(currentClip, afterPlayback, nextNumber);
+  }
 };
 $('sound').onclick = () => {
   muted = !muted;
+  for (const video of videos) video.muted = muted;
   $('sound').textContent = muted ? '声音关' : '声音开';
   $('sound').setAttribute('aria-pressed', String(!muted));
-  if (muted) {
-    const continuation = afterPlayback;
-    stopAudio();
-    $('avatarStatus').textContent = '声音已关闭';
-    if (continuation) transitionTimer = setTimeout(continuation, 5500);
-  }
 };
 $('help').onclick = () => $('helpDialog').showModal();
 $('closeHelp').onclick = () => $('helpDialog').close();
@@ -152,9 +246,9 @@ $('fullscreen').onclick = async () => {
 };
 
 $('mic').onclick = () => {
+  if (playing || reviewing) return;
   if (!Recognition) { $('status').textContent = '此浏览器无法语音识别，请打字回答。'; return; }
   if (recognition) { recognition.stop(); return; }
-  stopAudio();
   const currentSession = session;
   const currentRound = round;
   const recorder = new Recognition();
@@ -206,7 +300,6 @@ $('download').onclick = () => {
 };
 window.addEventListener('pagehide', () => {
   session++;
-  clearTimeout(transitionTimer);
-  stopAudio();
+  stopVideo();
   recognition?.abort();
 });
